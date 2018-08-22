@@ -1,0 +1,74 @@
+version: '3.1'
+services:
+  mariadbs: 
+    #build: .
+    image: toughiq/mariadb-cluster
+    ports: 
+      - "5555:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    environment:
+      - DB_SERVICE_NAME=mariadbs
+      - MYSQL_DATABASE=mydb
+      - MYSQL_USER=myuser
+      - MYSQL_PASSWORD=mypass
+
+      #- ACCEPT_EULA=Y
+      #- MSSQL_PID=Developer
+      #- MSSQL_USER=dbi
+      #- MSSQL_USER_PASSWORD_FILE=/run/secrets/mssql_user_password
+      #- TZ=Europe/Berlin
+      #- SERVICE_PORTS=1433
+    networks:
+      - front-tier
+    deploy:
+      replicas: 3
+      placement:
+        constraints: [node.role != manager]
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2048M 
+        reservations:
+          cpus: '1'
+          memory: 512M 
+    #secrets:
+    #  - source: mssql_sa_password
+    #    target: mssql_sa_password
+    #  - source: mssql_user_password
+    #    target: mssql_user_password
+ 
+  proxy:
+      image: dockercloud/haproxy
+      depends_on:
+        - mariadbs
+      environment:
+        - BALANCE=leastconn
+        - ADDITIONAL_SERVICES=project_dir:mariadbs
+        - MODE=tcp
+      volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
+      ports:
+        - 80:80
+        - 1936:1936
+      networks:
+        - front-tier
+      deploy:
+        placement:
+          constraints: [node.role == manager]
+ 
+networks:
+  back-tier:
+    driver: overlay
+  front-tier:
+    driver: overlay
+    #  name: frontend-server
+
+volumes:
+  db_data:
+ 
+#secrets: # top level secrets block
+#  mssql_sa_password:
+#    external: true
+#  mssql_user_password:
+#    external: true
